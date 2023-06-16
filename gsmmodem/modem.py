@@ -379,7 +379,7 @@ class GsmModem(SerialComms):
                                 self._smsMemReadDelete = memType
                             cpmsItems[i] = memType
                             break
-                self.write('AT+CPMS={0}'.format(','.join(cpmsItems))) # Set message storage
+                self.write('AT+CPMS={0}'.format(','.join(cpmsItems)), waitForResponse=True) # Set message storage 
             del cpmsSupport
             del cpmsLine
 
@@ -413,6 +413,8 @@ class GsmModem(SerialComms):
         # Call control setup
         self.write('AT+CVHU=0', parseError=False) # Enable call hang-up with ATH command (ignore if command not supported)
 
+        # Empty sms 
+        #self.write('AT+CMGD=0,4', parseError=False)
     def _unlockSim(self, pin):
         """ Unlocks the SIM card using the specified PIN (if necessary, else does nothing) """
         # Unlock the SIM card if needed
@@ -489,7 +491,8 @@ class GsmModem(SerialComms):
                         if errorType == 'CME':
                             raise CmeError(data, int(errorCode))
                         else: # CMS error
-                            raise CmsError(data, int(errorCode))
+                            if(int(errorCode) != 321):
+                                raise CmsError(data, int(errorCode))
                     else:
                         raise CommandError(data)
                 elif cmdStatusLine == 'COMMAND NOT SUPPORT': # Some Huawei modems respond with this for unknown commands
@@ -719,11 +722,11 @@ class GsmModem(SerialComms):
         # Switch to the correct memory type if required
         if write != None and write != self._smsMemWrite:
             readDel = readDelete or self._smsMemReadDelete
-            self.write('AT+CPMS="{0}","{1}"'.format(readDel, write))
+            self.write('AT+CPMS="{0}","{1}"'.format(readDel, write), waitForResponse=True)
             self._smsMemReadDelete = readDel
             self._smsMemWrite = write
         elif readDelete != None and readDelete != self._smsMemReadDelete:
-            self.write('AT+CPMS="{0}"'.format(readDelete))
+            self.write('AT+CPMS="{0}"'.format(readDelete), waitForResponse=True)
             self._smsMemReadDelete = readDelete
 
     def _compileSmsRegexes(self):
@@ -931,6 +934,7 @@ class GsmModem(SerialComms):
 
         if result == None:
             raise CommandError('Modem did not respond with +CMGS response')
+        #self.write('AT+CMGD=0,1',format(pdu.tpduLength), timeout=5, expectedResponseTermSeq='> ')
 
         # Keep SMS reference number in order to pair delivery reports with sent message
         reference = int(result[7:])
@@ -1475,7 +1479,7 @@ class GsmModem(SerialComms):
         :raise CommandError: if unable to delete the stored message
         """
         self._setSmsMemory(readDelete=memory)
-        self.write('AT+CMGD={0},0'.format(index))
+        self.write('AT+CMGD={0},1'.format(index))
         # TODO: make a check how many params are supported by the modem and use the right command. For example, Siemens MC35, TC35 take only one parameter.
         #self.write('AT+CMGD={0}'.format(index))
 
